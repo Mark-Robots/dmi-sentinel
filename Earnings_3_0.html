@@ -1544,7 +1544,7 @@ body::before{
           <button class="date-apply" onclick="applyDateRange()" data-i18n-html="apply" style="flex-shrink:0;padding:4px 8px;">▶</button>
         </div>
         <!-- Toggle filtro EMA200 sui long (sentinelMode) — default OFF -->
-        <label id="htfLongToggle" title="Se attivo, entra long solo con prezzo > EMA200(1h). Default OFF = DMI puro, come nel Sentinel." style="display:flex;align-items:center;gap:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11px;color:var(--text2,#5a6478);user-select:none;padding-top:2px;">
+        <label id="htfLongToggle" title="Per-asset: BTC/ETH attivo, SOL spento di default. Se attivo, entra long solo con prezzo > EMA200(1h)." style="display:flex;align-items:center;gap:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11px;color:var(--text2,#5a6478);user-select:none;padding-top:2px;">
           <input type="checkbox" id="htfLongChk" onchange="toggleHtfLong(this)" style="width:14px;height:14px;cursor:pointer;accent-color:var(--blue,#2d6cdf);flex-shrink:0;">
           <span>Filtro EMA200 (entrate long)</span>
         </label>
@@ -1622,7 +1622,7 @@ const VOL_LEN=20, VOL_MULT_LONG=1.30, VOL_MULT_SHORT=1.30, DMI_PERIOD=14;
 const HTF_EMA_LEN=200;
 
 let asset='BTC', tf='1h';
-let useHtfLong=false; // EMA200 sui long in sentinelMode — default OFF (= operatività reale: DMI puro)
+let useHtfLong={BTC:true, ETH:true, SOL:false}; // EMA200 sui long per-asset (sentinelMode): BTC/ETH ON, SOL OFF
 let miniTf='1d';
 let miniChart=null, miniCandleSeries=null;
 let filterFrom=new Date(getOperationalStart()+'T00:00:00Z').getTime()/1000;
@@ -2067,9 +2067,9 @@ function computeSignals(candles,dIndex,volMA,fromTs=null,toTs=null){
     const sX=(dip<=p.d3&&di>p.d3)||(dip<=p.d4&&di>p.d4);
 
     if (sentinelMode) {
-      // ── DMI Sentinel mode (long-only) — EMA200 sui long opzionale via useHtfLong (default OFF) ──
+      // ── DMI Sentinel mode (long-only) — EMA200 sui long per-asset via useHtfLong (BTC/ETH ON, SOL OFF) ──
       const htfOkLong = !isNaN(htfEma[i]) && cl > htfEma[i];
-      const longTrigger = lE && (!useHtfLong || htfOkLong);
+      const longTrigger = lE && (!useHtfLong[asset] || htfOkLong);
 
       if (longTrigger && pos !== 'LONG') {
         pos='LONG';ep=cl;et=ts;entryI=i;
@@ -3930,7 +3930,7 @@ function updateMiniAssetName(){
 }
 
 function toggleHtfLong(cb){
-  useHtfLong = !!cb.checked;
+  useHtfLong[asset] = !!cb.checked;
   loadData();
 }
 function setAsset(a,btn){
@@ -3951,6 +3951,7 @@ function setAsset(a,btn){
   if (dmiBadge) dmiBadge.style.display = 'none';
   document.querySelectorAll('#assetBtns .btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  const htfChk=document.getElementById('htfLongChk'); if(htfChk) htfChk.checked=!!useHtfLong[asset];
   updateMiniAssetName();
   loadData();
   loadMiniChart();
@@ -4229,7 +4230,7 @@ function buildDmiInspectRows() {
     const lE = (dip < p.d1 && di >= p.d1) || (dip < p.d2 && di >= p.d2);
     const lX = (dip >= p.d1 && di < p.d1) || (dip >= p.d2 && di < p.d2);
 
-    const effHtfOk = !useHtfLong || htfOkLong;
+    const effHtfOk = !useHtfLong[asset] || htfOkLong;
     let signal = '';
     if (lE && effHtfOk) signal = 'LONG_ENTRY';
     else if (lE && !effHtfOk) signal = 'long_blocked_HTF';
@@ -4332,6 +4333,8 @@ function downloadDmiInspectCsv() {
 document.addEventListener('DOMContentLoaded', () => {
   const cb = document.getElementById('diOnlySignals');
   if (cb) cb.addEventListener('change', renderDmiInspectTable);
+  const htfChk = document.getElementById('htfLongChk');
+  if (htfChk) htfChk.checked = !!useHtfLong[asset];
 });
 
 function saveParamsLS(){

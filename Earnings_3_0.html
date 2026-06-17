@@ -1543,6 +1543,11 @@ body::before{
           <input type="date" class="date-input" id="dateTo" style="flex:1;min-width:0;">
           <button class="date-apply" onclick="applyDateRange()" data-i18n-html="apply" style="flex-shrink:0;padding:4px 8px;">▶</button>
         </div>
+        <!-- Toggle filtro EMA200 sui long (sentinelMode) — default OFF -->
+        <label id="htfLongToggle" title="Se attivo, entra long solo con prezzo > EMA200(1h). Default OFF = DMI puro, come nel Sentinel." style="display:flex;align-items:center;gap:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11px;color:var(--text2,#5a6478);user-select:none;padding-top:2px;">
+          <input type="checkbox" id="htfLongChk" onchange="toggleHtfLong(this)" style="width:14px;height:14px;cursor:pointer;accent-color:var(--blue,#2d6cdf);flex-shrink:0;">
+          <span>Filtro EMA200 (entrate long)</span>
+        </label>
         <!-- ID legacy mantenuti come hidden per non rompere il JS -->
         <span id="livePrice" style="display:none;">—</span>
         <span id="ohlcOpen" style="display:none;">—</span>
@@ -1617,6 +1622,7 @@ const VOL_LEN=20, VOL_MULT_LONG=1.30, VOL_MULT_SHORT=1.30, DMI_PERIOD=14;
 const HTF_EMA_LEN=200;
 
 let asset='BTC', tf='1h';
+let useHtfLong=false; // EMA200 sui long in sentinelMode — default OFF (= operatività reale: DMI puro)
 let miniTf='1d';
 let miniChart=null, miniCandleSeries=null;
 let filterFrom=new Date(getOperationalStart()+'T00:00:00Z').getTime()/1000;
@@ -2061,9 +2067,9 @@ function computeSignals(candles,dIndex,volMA,fromTs=null,toTs=null){
     const sX=(dip<=p.d3&&di>p.d3)||(dip<=p.d4&&di>p.d4);
 
     if (sentinelMode) {
-      // ── DMI Sentinel mode (long-only, HTF-only filter) ──
+      // ── DMI Sentinel mode (long-only) — EMA200 sui long opzionale via useHtfLong (default OFF) ──
       const htfOkLong = !isNaN(htfEma[i]) && cl > htfEma[i];
-      const longTrigger = lE && htfOkLong;
+      const longTrigger = lE && (!useHtfLong || htfOkLong);
 
       if (longTrigger && pos !== 'LONG') {
         pos='LONG';ep=cl;et=ts;entryI=i;
@@ -3923,6 +3929,10 @@ function updateMiniAssetName(){
   if(hlbl) hlbl.textContent=ASSET_NAMES_FULL[asset]||asset;
 }
 
+function toggleHtfLong(cb){
+  useHtfLong = !!cb.checked;
+  loadData();
+}
 function setAsset(a,btn){
   asset=a;
   currentTicker=null;
@@ -4219,9 +4229,10 @@ function buildDmiInspectRows() {
     const lE = (dip < p.d1 && di >= p.d1) || (dip < p.d2 && di >= p.d2);
     const lX = (dip >= p.d1 && di < p.d1) || (dip >= p.d2 && di < p.d2);
 
+    const effHtfOk = !useHtfLong || htfOkLong;
     let signal = '';
-    if (lE && htfOkLong) signal = 'LONG_ENTRY';
-    else if (lE && !htfOkLong) signal = 'long_blocked_HTF';
+    if (lE && effHtfOk) signal = 'LONG_ENTRY';
+    else if (lE && !effHtfOk) signal = 'long_blocked_HTF';
     else if (lX) signal = 'LONG_EXIT';
 
     _dmiInspectRows.push({
